@@ -1,0 +1,109 @@
+name: 'Default runner images'
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - converted_to_draft
+
+env:
+  ECR_REPO_PREFIX: my-repo
+  IMAGE_TAG: latest
+
+jobs:
+  docker_build_and_test:
+    name: Build and test docker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      - name: Docker context create
+        run: docker context create ${{ github.sha }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+        with:
+          endpoint: ${{ github.sha }}
+      # Build the image
+      - name: Build image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/cryptoapp:${{ env.IMAGE_TAG }}
+          outputs: type=docker,dest=/tmp/cryptoapp_image.tar
+          push: false
+      - name: Load Docker image
+        run: |
+          docker load --input /tmp/cryptoapp_image.tar
+      # Test the image
+      - name: Run Snyk to check Docker image for vulnerabilities
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/cryptoapp:${{ env.IMAGE_TAG }}
+          args: --severity-threshold=medium
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: cryptoapp_image
+          path: /tmp
+          retention-days: 1
+    outputs:
+      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+  push_and_deploy:
+    name: Push image to ECR
+    # allow this to run always because the Snyk scans may fail with vulnerabilities that can't yet be fixed 
+    if: always()
+    needs: [docker_build_and_test]
+    runs-on: ubuntu-latest
+    environment: push_and_deploy
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: cryptoapp_image
+          path: /tmp
+      - name: Load Docker image
+        run: |
+          docker load --input /tmp/cryptoapp_image.tar
+      # Push image to ECR
+      - name: Push docker image
+        env:
+          ECR_REGISTRY: ${{ needs.docker_build_and_test.outputs.ecr-registry }}
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/cryptoapp:${{ env.IMAGE_TAG }}
+      # Deploy Helm chart
+      - name: Deploy
+        uses: 'deliverybot/helm@master'
+        with:
+          token: ${{ github.token }}
+          chart: ./chart
+          namespace: default
+          release: cryptoapp
+          value-files: ./chart/values.yaml
+        env:
+          KUBECONFIG_FILE: ${{ secrets.KUBECONFIG }}

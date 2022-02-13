@@ -2,17 +2,7 @@
    <head>
       <title>{{ display_text }}</title>
    </head>
-   <script>
-      setInterval(function() {
-          $.ajax({
-            type: "POST",
-            url: "/",
-          })
-            .done(function( price ) {
-              $("#price-box").val(price)
-            });
-      }, 1000 * 60);
-   </script>
+
    <body>
       {{ display_text }}
    </body>
