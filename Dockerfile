@@ -1,7 +1,5 @@
 FROM python:3.9-alpine
 
-MAINTAiNER Jamie Wong "jamiecawong@gmail.com"
-
 COPY ./requirements.txt /app/requirements.txt
 
 WORKDIR /app
