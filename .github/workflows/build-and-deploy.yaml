@@ -1,15 +1,6 @@
-name: 'Default runner images'
+name: 'Build, test and deploy cryptoapp'
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types:
-      - opened
-      - edited
-      - reopened
-      - synchronize
-      - converted_to_draft
+  push
 
 env:
   ECR_REPO_PREFIX: my-repo
@@ -70,11 +61,44 @@ jobs:
           retention-days: 1
     outputs:
       ecr-registry: ${{ steps.login-ecr.outputs.registry }}
+
+  helm_lint_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.7.2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.2.0
+      # linting and testing only runs if the chart has changed
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --target-branch ${{ github.ref_name }})
+          if [[ -n "$changed" ]]; then
+            echo "::set-output name=changed::true"
+          fi
+      - name: Run chart-testing (lint)
+        run: ct lint --chart-dirs . --charts chart --validate-maintainers=false
+        if: steps.list-changed.outputs.changed == 'true'
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.2.0
+        if: steps.list-changed.outputs.changed == 'true'
+      - name: Run chart-testing (install)
+        run: ct install --chart-dirs . --charts chart
+        if: steps.list-changed.outputs.changed == 'true'
+
   push_and_deploy:
     name: Push image to ECR
     # allow this to run always because the Snyk scans may fail with vulnerabilities that can't yet be fixed 
     if: always()
-    needs: [docker_build_and_test]
+    needs: [docker_build_and_test, helm_lint_and_test]
     runs-on: ubuntu-latest
     environment: push_and_deploy
     defaults:
