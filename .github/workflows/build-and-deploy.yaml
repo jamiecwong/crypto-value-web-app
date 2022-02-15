@@ -1,4 +1,4 @@
-name: 'Build, test and deploy cryptoapp'
+name: 'Build, test and deploy service-a'
 on:
   push
 
@@ -38,12 +38,12 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/cryptoapp:${{ env.IMAGE_TAG }}
-          outputs: type=docker,dest=/tmp/cryptoapp_image.tar
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/service-a:${{ env.IMAGE_TAG }}
+          outputs: type=docker,dest=/tmp/service-a_image.tar
           push: false
       - name: Load Docker image
         run: |
-          docker load --input /tmp/cryptoapp_image.tar
+          docker load --input /tmp/service-a_image.tar
       # Test the image
       - name: Run Snyk to check Docker image for vulnerabilities
         uses: snyk/actions/docker@master
@@ -51,12 +51,12 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         with:
-          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/cryptoapp:${{ env.IMAGE_TAG }}
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/service-a:${{ env.IMAGE_TAG }}
           args: --severity-threshold=medium
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: cryptoapp_image
+          name: service-a_image
           path: /tmp
           retention-days: 1
     outputs:
@@ -109,17 +109,17 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v2
         with:
-          name: cryptoapp_image
+          name: service-a_image
           path: /tmp
       - name: Load Docker image
         run: |
-          docker load --input /tmp/cryptoapp_image.tar
+          docker load --input /tmp/service-a_image.tar
       # Push image to ECR
       - name: Push docker image
         env:
           ECR_REGISTRY: ${{ needs.docker_build_and_test.outputs.ecr-registry }}
         run: |
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/cryptoapp:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}/service-a:${{ env.IMAGE_TAG }}
       # Deploy Helm chart
       - name: Deploy
         uses: 'deliverybot/helm@master'
@@ -127,7 +127,7 @@ jobs:
           token: ${{ github.token }}
           chart: ./chart
           namespace: default
-          release: cryptoapp
+          release: service-a
           value-files: ./chart/values.yaml
         env:
           KUBECONFIG_FILE: ${{ secrets.KUBECONFIG }}

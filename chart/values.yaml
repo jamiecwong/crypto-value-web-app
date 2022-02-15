@@ -1,17 +1,17 @@
-# Default values for cryptoapp.
+# Default values for service-a.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
 
 image:
-  repository: <ECR_REGISTRY>/<ECR_REPOSITORY>/cryptoapp
+  repository: <ECR_REGISTRY>/<ECR_REPOSITORY>/service-a
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
 imagePullSecrets: []
-nameOverride: cryptoapp
+nameOverride: service-a
 fullnameOverride: crypto-chart
 
 serviceAccount:
