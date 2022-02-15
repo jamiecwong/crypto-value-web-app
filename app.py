@@ -61,5 +61,4 @@ def get_response(coin_id, currency) -> str:
 
 
 if __name__ == "__main__":
-    # TODO REMOVE DEBUG
-    app.run(debug=True, host="0.0.0.0")
+    app.run(host="0.0.0.0")
