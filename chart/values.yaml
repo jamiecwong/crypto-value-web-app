@@ -12,7 +12,7 @@ image:
 
 imagePullSecrets: []
 nameOverride: service-a
-fullnameOverride: crypto-chart
+fullnameOverride: service-a
 
 serviceAccount:
   # Specifies whether a service account should be created
